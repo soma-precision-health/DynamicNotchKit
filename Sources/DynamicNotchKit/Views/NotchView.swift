@@ -13,6 +13,21 @@ struct NotchView<Expanded, CompactLeading, CompactTrailing>: View where Expanded
     @State private var compactTrailingWidth: CGFloat = 0
     private let safeAreaInset: CGFloat = 15
 
+    /// The horizontal scale the compact slots collapse to, rather than a literal 0.
+    ///
+    /// `scaleEffect(x: 0)` is a singular matrix (determinant `a * d - b * c` = 0), so it
+    /// cannot be inverted. AppKit inverts a view's transform when it converts between
+    /// bounds and frame space during layout, and dividing by a zero determinant yields
+    /// ±infinity or NaN — at which point `-[NSView setFrameTransform:]` trips its
+    /// `isfinite(frameTransform.a)` assertion and the process aborts (SIGABRT). Pure
+    /// SwiftUI content never hits this, because it goes straight to a CALayer with no
+    /// inversion; any AppKit-backed view in the subtree does.
+    ///
+    /// A compact slot is ~18pt wide, so this leaves it 0.018pt — well under a single
+    /// pixel, visually identical to a full collapse — while keeping the matrix
+    /// invertible. The expanded slot uses `scale(y: 0.6)` and is already non-singular.
+    private let compactCollapsedScale: CGFloat = 0.001
+
     init(dynamicNotch: DynamicNotch<Expanded, CompactLeading, CompactTrailing>) {
         self.dynamicNotch = dynamicNotch
     }
@@ -109,7 +124,7 @@ struct NotchView<Expanded, CompactLeading, CompactTrailing>: View where Expanded
                     .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 4) }
                     .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 8) }
                     .onGeometryChange(for: CGFloat.self, of: \.size.width) { compactLeadingWidth = $0 }
-                    .transition(.blur(intensity: 10).combined(with: .scale(x: 0, anchor: .trailing)).combined(with: .opacity))
+                    .transition(.blur(intensity: 10).combined(with: .scale(x: compactCollapsedScale, anchor: .trailing)).combined(with: .opacity))
             }
 
             Spacer()
@@ -122,7 +137,7 @@ struct NotchView<Expanded, CompactLeading, CompactTrailing>: View where Expanded
                     .safeAreaInset(edge: .top, spacing: 0) { Color.clear.frame(height: 4) }
                     .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 8) }
                     .onGeometryChange(for: CGFloat.self, of: \.size.width) { compactTrailingWidth = $0 }
-                    .transition(.blur(intensity: 10).combined(with: .scale(x: 0, anchor: .leading)).combined(with: .opacity))
+                    .transition(.blur(intensity: 10).combined(with: .scale(x: compactCollapsedScale, anchor: .leading)).combined(with: .opacity))
             }
         }
         .frame(height: dynamicNotch.notchSize.height)
