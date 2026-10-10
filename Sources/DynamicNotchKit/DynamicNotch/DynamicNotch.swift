@@ -145,7 +145,20 @@ public final class DynamicNotch<Expanded, CompactLeading, CompactTrailing>: Obse
         Task {
             let sequence = NotificationCenter.default.notifications(named: NSApplication.didChangeScreenParametersNotification)
             for await _ in sequence.map(\.name) {
+                // A hidden notch has nothing to show. Re-creating its window here left a
+                // panel on screen that nothing closed: `hide()` returns early once the
+                // state is already `.hidden`, so the panel stayed until the next full
+                // show-then-hide cycle. On a notch screen it sat behind the physical
+                // notch, invisible but click-eating; on a screen without one it was a
+                // black bar at the top of the display (Soma, 2026-10-10).
+                guard state != .hidden else {
+                    deinitializeWindow()
+                    continue
+                }
                 if let screen = NSScreen.screens.first {
+                    // The old hosting view never reports the pointer leaving, so a
+                    // hover in flight would pin `.keepVisible` hides forever.
+                    isHovering = false
                     initializeWindow(screen: screen)
                 }
             }
